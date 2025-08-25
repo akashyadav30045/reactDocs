@@ -1,74 +1,98 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, ChangeEvent, FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ToastContainer } from 'react-toastify';
+import { handleError, handleSuccess } from '../utils/utils';
 
-export default function Login() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState(false)
-  const navigate = useNavigate()
+interface LoginInfo {
+  email: string;
+  password: string;
+}
 
-  const handleLogin = () => {
+interface LoginResponse {
+  success?: boolean;
+  message?: string;
+  jwtToken?: string;
+  name?: string;
+  error?: { details?: { message: string }[] };
+}
+
+const Login: React.FC = () => {
+  const [loginInfo, setLoginInfo] = useState<LoginInfo>({ email: '', password: '' });
+  const navigate = useNavigate();
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setLoginInfo(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const { email, password } = loginInfo;
+
     if (!email || !password) {
-      setError(true)
-      return
+      return handleError('Email and password are required');
     }
 
-    
-    const user = { email, password }
-    localStorage.setItem('user', JSON.stringify(user))
+    try {
+      const url = 'http://localhost:3001/auth/login';
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginInfo),
+      });
 
-    navigate('/home')
-  }
+      const result: LoginResponse = await response.json();
+      const { success, message, jwtToken, name, error } = result;
 
-  const handleClear = () => {
-    localStorage.clear()
-  }
+      if (success) {
+        handleSuccess(message || 'Login successful');
+        localStorage.setItem('token', jwtToken || '');
+        localStorage.setItem('loggedInUser', name || '');
+        setTimeout(() => navigate('/home'), 1000);
+      } else if (error?.details) {
+        handleError(error.details[0].message);
+      } else {
+        handleError(message || 'Login failed');
+      }
+
+      console.log(result);
+    } catch (err: unknown) {
+      handleError(err instanceof Error ? err.message : String(err));
+    }
+  };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-sm">
-        <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
-
-        <div className="mb-4">
-          <label className="block mb-1 text-sm font-medium text-gray-700">Email</label>
+    <div className="container">
+      <h1>Login</h1>
+      <form onSubmit={handleLogin}>
+        <div>
+          <label htmlFor="email">Email</label>
           <input
+            onChange={handleChange}
             type="email"
-            className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your email"
+            name="email"
+            placeholder="Enter your email..."
+            value={loginInfo.email}
           />
         </div>
-
-        <div className="mb-6">
-          <label className="block mb-1 text-sm font-medium text-gray-700">Password</label>
+        <div>
+          <label htmlFor="password">Password</label>
           <input
+            onChange={handleChange}
             type="password"
-            className="w-full px-4 py-2 border rounded-md  "
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your password"
+            name="password"
+            placeholder="Enter your password..."
+            value={loginInfo.password}
           />
-          {error && !password && (
-            <p className="text-red-500 text-sm mt-1">Password is required</p>
-          )}
         </div>
-
-        <div className="flex justify-between">
-          <button
-            onClick={handleLogin}
-            className="bg-blue-500 text-white px-4 py-2 rounded "
-          >
-            Login
-          </button>
-          <button
-            onClick={handleClear}
-            className="text-blue-500 px-4 py-2 "
-          >
-          Clear
-          </button>
-        </div>
-      </div>
+        <button type="submit">Login</button>
+        <span>
+          Don't have an account? <Link to="/signup">Signup</Link>
+        </span>
+      </form>
+      <ToastContainer />
     </div>
-  )
-}
+  );
+};
+
+export default Login;
